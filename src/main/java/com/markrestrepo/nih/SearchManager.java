@@ -65,7 +65,7 @@ public class SearchManager {
         // Submit a thread to process the search and retrieve all results.
         this.threads.put(
                 uid,
-                this.executor.submit(() -> processSearch(term, this.baseURI, 200))
+                this.executor.submit(() -> processSearch(term, this.baseURI, records))
         );
         this.startTimes.put(uid, System.currentTimeMillis());
 
@@ -84,16 +84,18 @@ public class SearchManager {
     public static ArrayList<Integer> processSearch(String term, String baseURI, int records) throws URISyntaxException,
             IOException, ParserConfigurationException, SAXException, InterruptedException {
         int retStart = 0;
-        int stepSize = 100;
+        int stepSize = 10000;
         ArrayList<Integer> retList = new ArrayList<>();
 
         // Loop through all the records, 10,000 at a time (the max allowed)
         while (retStart < records) {
+            long startTime = System.currentTimeMillis();
+
             // Get the next batch of 10,000
             URIBuilder builder = new URIBuilder(baseURI);
             URI uri = builder
                 .addParameter("term", term)
-                .addParameter("retmax", "100")
+                .addParameter("retmax", String.format("%d", stepSize))
                 .addParameter("retstart", String.format("%d", retStart))
                 .build();
 
@@ -109,7 +111,11 @@ public class SearchManager {
 
             // The api is gated at 3 calls per second, so let's slow things down here to make
             // sure we don't exceed that
-            Thread.sleep((long) (1e4 / 3));
+            long endTime = System.currentTimeMillis();
+            long duration = endTime - startTime;
+            if (duration < (1e4 / 3)) {
+                Thread.sleep((long) ((1e4 / 3) - duration));
+            }
         }
 
         return retList;

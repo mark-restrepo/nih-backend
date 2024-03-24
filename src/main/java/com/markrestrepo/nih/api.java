@@ -16,7 +16,14 @@ public class api {
             System.out.println("API initialization failed");
             throw new RuntimeException(e);
         }
-        Javalin app = Javalin.create(/*config*/)
+        Javalin app = Javalin.create(
+                config -> {
+                    config.bundledPlugins.enableCors(cors -> {
+                        cors.addRule(it -> {
+                            it.allowHost("http://localhost:3000");
+                        });
+                    });
+                })
                 .get("/search/{term}", ctx ->
                         {
                             try {
