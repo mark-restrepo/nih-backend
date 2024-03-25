@@ -51,12 +51,11 @@ public class SearchManager {
      * @return Placeholder search response
      */
     public SearchResponse search(String term) throws URISyntaxException, IOException, ParserConfigurationException, SAXException {
-        // As far as I can tell, the best way to determine the number of results for a topic
-        // is to hit the search api. So, we do that here before initializing the thread.
+        // Check how many records will be present
         URIBuilder builder = new URIBuilder(this.baseURI);
         URI checkUri = builder
                 .addParameter("term", term)
-                .addParameter("retmax", "1")
+                .addParameter("rettype", "count")
                 .build();
         String uid = UUID.randomUUID().toString();
         Document doc = submitGet(checkUri);
@@ -65,7 +64,7 @@ public class SearchManager {
         // Submit a thread to process the search and retrieve all results.
         this.threads.put(
                 uid,
-                this.executor.submit(() -> processSearch(term, this.baseURI, records))
+                this.executor.submit(() -> processSearch(term, this.baseURI))
         );
         this.startTimes.put(uid, System.currentTimeMillis());
 
@@ -78,45 +77,27 @@ public class SearchManager {
      *
      * @param term Search term
      * @param baseURI Base url to hit
-     * @param records Number of records for term
      * @return List of the record id's
      */
-    public static ArrayList<Integer> processSearch(String term, String baseURI, int records) throws URISyntaxException,
+    public static ArrayList<Integer> processSearch(String term, String baseURI) throws URISyntaxException,
             IOException, ParserConfigurationException, SAXException, InterruptedException {
-        int retStart = 0;
-        int stepSize = 10000;
+        int retMax = 10000;
         ArrayList<Integer> retList = new ArrayList<>();
 
-        // Loop through all the records, 10,000 at a time (the max allowed)
-        while (retStart < records) {
-            long startTime = System.currentTimeMillis();
+        // The API limits pubmed searches to 10,000
+        URIBuilder builder = new URIBuilder(baseURI);
+        URI uri = builder
+            .addParameter("term", term)
+            .addParameter("retmax", String.format("%d", retMax))
+            .build();
 
-            // Get the next batch of 10,000
-            URIBuilder builder = new URIBuilder(baseURI);
-            URI uri = builder
-                .addParameter("term", term)
-                .addParameter("retmax", String.format("%d", stepSize))
-                .addParameter("retstart", String.format("%d", retStart))
-                .build();
-
-            // Parse the list of id's from the batch
-            Document doc = submitGet(uri);
-            NodeList idList = doc.getElementsByTagName("Id");
-            for (int n = 0; n < idList.getLength(); n++){
-                retList.add(Integer.parseInt(idList.item(n).getTextContent()));
-            }
-
-            // Advance the loop
-            retStart += stepSize;
-
-            // The api is gated at 3 calls per second, so let's slow things down here to make
-            // sure we don't exceed that
-            long endTime = System.currentTimeMillis();
-            long duration = endTime - startTime;
-            if (duration < (1e4 / 3)) {
-                Thread.sleep((long) ((1e4 / 3) - duration));
-            }
+        // Parse the list of id's from the batch
+        Document doc = submitGet(uri);
+        NodeList idList = doc.getElementsByTagName("Id");
+        for (int n = 0; n < idList.getLength(); n++){
+            retList.add(Integer.parseInt(idList.item(n).getTextContent()));
         }
+
 
         return retList;
     }

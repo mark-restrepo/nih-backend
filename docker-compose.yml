@@ -1,0 +1,9 @@
+services:
+  frontend:
+    image: "markrestrepo/nih-frontend:latest"
+    ports:
+      - "3000:3000"
+  backend:
+    image: "markrestrepo/nih-backend:latest"
+    ports:
+      - "7070:7070"
