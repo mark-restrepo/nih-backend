@@ -32,3 +32,24 @@ java -jar target/nih-1.0-SNAPSHOT.jar
 ```
 
 If everything was successful, you should be able to access the api at http://localhost:7070
+
+### Docker
+
+A docker configuration is also provided alongside the app. To build the image, run:
+
+```bash 
+docker build -t nih-backend .
+```
+*Note: you'll need to have built the jar for this to run*
+
+Then to run the image: 
+
+```bash 
+docker run -p 7070:7070 nih-backend 
+```
+
+There is also a docker-compose yml available that runs both components:
+
+```bash 
+docker compose up
+```
