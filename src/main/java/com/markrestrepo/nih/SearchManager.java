@@ -1,6 +1,7 @@
 package com.markrestrepo.nih;
 
 import com.markrestrepo.nih.model.SearchResponse;
+import com.markrestrepo.nih.model.SearchResult;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpGet;
@@ -29,7 +30,7 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 public class SearchManager {
     public ThreadPoolExecutor executor;
-    public HashMap<String, Future<ArrayList<Integer>>> threads;
+    public HashMap<String, Future<SearchResult>> threads;
     public HashMap<String, Long> startTimes;
     private String baseURI = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi";
 
@@ -64,7 +65,7 @@ public class SearchManager {
         // Submit a thread to process the search and retrieve all results.
         this.threads.put(
                 uid,
-                this.executor.submit(() -> processSearch(term, this.baseURI))
+                this.executor.submit(() -> processSearch(uid, term, this.baseURI))
         );
         this.startTimes.put(uid, System.currentTimeMillis());
 
@@ -79,12 +80,12 @@ public class SearchManager {
      * @param baseURI Base url to hit
      * @return List of the record id's
      */
-    public static ArrayList<Integer> processSearch(String term, String baseURI) throws URISyntaxException,
+    public static SearchResult processSearch(String id, String term, String baseURI) throws URISyntaxException,
             IOException, ParserConfigurationException, SAXException, InterruptedException {
         int retMax = 10000;
         ArrayList<Integer> retList = new ArrayList<>();
 
-        // The API limits pubmed searches to 10,000
+        // The API limits pubmed searches to 10,000 results, so that's all we can return
         URIBuilder builder = new URIBuilder(baseURI);
         URI uri = builder
             .addParameter("term", term)
@@ -98,8 +99,7 @@ public class SearchManager {
             retList.add(Integer.parseInt(idList.item(n).getTextContent()));
         }
 
-
-        return retList;
+        return new SearchResult(retList, System.currentTimeMillis());
     }
 
     /***
@@ -109,20 +109,21 @@ public class SearchManager {
      * @return a response w/ the status of the task, and results if available
      */
     public HashMap fetch(String taskId) throws ExecutionException, InterruptedException {
-        Future<ArrayList<Integer>> res = threads.get(taskId);
+        Future<SearchResult> res = threads.get(taskId);
         if (res == null) {
             throw new NoSuchElementException(String.format("No results found for id %s", taskId));
         }
         Long createTime = this.startTimes.get(taskId);
+        SearchResult sr = res.get();
         HashMap<Object, Object> resultMap = new HashMap<>();
         resultMap.put("task_id", taskId);
         resultMap.put("created_time", this.dateFormatter.format(createTime));
 
         if (res.isDone()) {
             resultMap.put("result", new HashMap<>());
-            ((HashMap) resultMap.get("result")).put("pmids", res.get());
+            ((HashMap) resultMap.get("result")).put("pmids", sr.results);
             resultMap.put("status", "completed");
-            resultMap.put("run_seconds", (int) (System.currentTimeMillis() - createTime)/1000);
+            resultMap.put("run_seconds", (int) (sr.endTime - createTime)/1000);
         } else {
             resultMap.put("status", "processing");
         }

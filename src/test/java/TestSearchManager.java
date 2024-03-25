@@ -15,10 +15,7 @@ public class TestSearchManager {
         SearchManager manager = new SearchManager();
         SearchResponse sr = manager.search("diabetes");
 
-        while(!manager.threads.get(sr.getId()).isDone()){
-            System.out.print("Waiting for results....");
-        }
-
-        manager.fetch(sr.getId());
+        manager.threads.get(sr.getId()).get();
+        System.out.println(manager.fetch(sr.getId()));
     }
 }
